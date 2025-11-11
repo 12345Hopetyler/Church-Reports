@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+// Ensure this API route runs under the Node.js runtime (Prisma needs a Node environment)
+export const runtime = 'nodejs';
+
 export async function GET() {
   try {
     const now = new Date();
