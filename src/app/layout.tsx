@@ -38,7 +38,8 @@ export default function RootLayout({
                 </div>
                 <span className="font-bold text-xl text-white hidden sm:inline">Church Reports</span>
               </Link>
-              <nav className="flex gap-1 sm:gap-2">
+                {/* Desktop nav: hidden on small screens to keep header compact */}
+                <nav className="hidden sm:flex gap-1 sm:gap-2">
                 <Link href="/" className="px-3 sm:px-4 py-2 rounded-lg text-white font-medium hover:bg-white/20 transition-all duration-200">
                   🏠 Home
                 </Link>
@@ -52,12 +53,15 @@ export default function RootLayout({
                   📊 Reports
                 </Link>
               </nav>
+                {/* Mobile: small title only (keeps header compact) */}
+                <div className="sm:hidden text-white text-sm font-medium">Church Reports</div>
             </div>
           </div>
         </header>
 
         {/* Main Content */}
-        <main className="bg-white max-w-7xl mx-auto px-6 py-8">
+        {/* Main Content: constrained to a mobile-app width on small screens */}
+        <main className="w-full max-w-md mx-auto px-4 py-8 pb-28 sm:pb-8">
           {children}
         </main>
 
@@ -67,6 +71,27 @@ export default function RootLayout({
             <p>© 2025 Church Financial System. All rights reserved.</p>
           </div>
         </footer>
+        {/* Mobile bottom navigation (visible only on small screens) */}
+        <nav className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-2 sm:hidden z-50">
+          <div className="flex items-center justify-between gap-3 px-2">
+            <Link href="/" className="flex flex-col items-center text-slate-700 text-xs px-3 py-2 hover:bg-slate-100 rounded-lg">
+              <span className="text-lg">🏠</span>
+              <span>Home</span>
+            </Link>
+            <Link href="/accounts" className="flex flex-col items-center text-slate-700 text-xs px-3 py-2 hover:bg-slate-100 rounded-lg">
+              <span className="text-lg">🏦</span>
+              <span>Accounts</span>
+            </Link>
+            <Link href="/transactions" className="flex flex-col items-center text-slate-700 text-xs px-3 py-2 hover:bg-slate-100 rounded-lg">
+              <span className="text-lg">💳</span>
+              <span>Tx</span>
+            </Link>
+            <Link href="/reports" className="flex flex-col items-center text-slate-700 text-xs px-3 py-2 hover:bg-slate-100 rounded-lg">
+              <span className="text-lg">📊</span>
+              <span>Reports</span>
+            </Link>
+          </div>
+        </nav>
       </body>
     </html>
   );
