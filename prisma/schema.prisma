@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Using string-based kinds for maximum compatibility with SQLite in this workspace
+
+
+model Account {
+  id           String        @id @default(uuid())
+  name         String
+  // type values: BANK | CASH | OTHER
+  type         String        @default("OTHER")
+  number       String?
+  currency     String        @default("ZMW")
+  openingCents Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+}
+
+model Category {
+  id          String        @id @default(uuid())
+  name        String
+  // kind values: INCOME | EXPENSE
+  kind        String
+  parentId    String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  transactions Transaction[]
+  transactionLines TransactionLine[]
+}
+
+model Member {
+  id         String        @id @default(uuid())
+  name       String
+  email      String?       @unique
+  phone      String?
+  note       String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  transactions Transaction[]
+}
+
+model Transaction {
+  id            String           @id @default(uuid())
+  date          DateTime
+  description   String?
+  amountCents   Int
+  accountId     String
+  account       Account          @relation(fields: [accountId], references: [id])
+  categoryId    String?
+  category      Category?        @relation(fields: [categoryId], references: [id])
+  memberId      String?
+  member        Member?          @relation(fields: [memberId], references: [id])
+  reference     String?
+  // type values: INCOME | EXPENSE | TRANSFER
+  type          String
+  createdBy     String
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  lines         TransactionLine[]
+}
+
+model TransactionLine {
+  id            String       @id @default(uuid())
+  transactionId String
+  transaction   Transaction  @relation(fields: [transactionId], references: [id])
+  description   String?
+  amountCents   Int
+  categoryId    String?
+  category      Category?    @relation(fields: [categoryId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  entity    String
+  entityId  String
+  action    String
+  user      String
+  timestamp DateTime @default(now())
+  // store JSON snapshots as text for SQLite compatibility
+  before    String?
+  after     String?
+  note      String?
+}
