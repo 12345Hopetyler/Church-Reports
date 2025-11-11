@@ -73,3 +73,53 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: { code: 'SERVER_ERROR', message: 'Unable to create transaction' } }, { status: 500 });
   }
 }
+
+// PATCH /api/v1/transactions
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, date, amountCents, accountId, categoryId, memberId, description, type, reference } = body;
+    if (!id) return NextResponse.json({ success: false, error: { code: 'VALIDATION', message: 'id is required' } }, { status: 400 });
+
+    const updateData: any = {};
+    if (date) updateData.date = new Date(date);
+    if (typeof amountCents === 'number') {
+      if (amountCents <= 0) return NextResponse.json({ success: false, error: { code: 'VALIDATION', message: 'amountCents must be a positive integer' } }, { status: 400 });
+      updateData.amountCents = amountCents;
+    }
+    if (accountId) updateData.accountId = accountId;
+    if (categoryId !== undefined) updateData.categoryId = categoryId || null;
+    if (memberId !== undefined) updateData.memberId = memberId || null;
+    if (description !== undefined) updateData.description = description || null;
+    if (type) updateData.type = type;
+    if (reference !== undefined) updateData.reference = reference || null;
+
+    const tx = await prisma.transaction.update({
+      where: { id },
+      data: updateData,
+      include: { account: true, category: true, member: true },
+    });
+
+    return NextResponse.json({ success: true, data: tx });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ success: false, error: { code: 'SERVER_ERROR', message: 'Unable to update transaction' } }, { status: 500 });
+  }
+}
+
+// DELETE /api/v1/transactions?id=...
+export async function DELETE(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id');
+    if (!id) return NextResponse.json({ success: false, error: { code: 'VALIDATION', message: 'id is required' } }, { status: 400 });
+
+    // soft-delete isn't implemented; perform hard delete for now
+    await prisma.transaction.delete({ where: { id } });
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ success: false, error: { code: 'SERVER_ERROR', message: 'Unable to delete transaction' } }, { status: 500 });
+  }
+}

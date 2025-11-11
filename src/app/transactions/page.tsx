@@ -13,6 +13,7 @@ export default function TransactionsPage() {
   const [type, setType] = useState('INCOME');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
+  const [editingTx, setEditingTx] = useState<Tx | null>(null);
 
   async function loadAccounts() {
     const res = await fetch('/api/v1/accounts');
@@ -39,17 +40,52 @@ export default function TransactionsPage() {
     }
     setLoading(true);
     const amountCents = Math.round(parseFloat(amount || '0') * 100);
-    const res = await fetch('/api/v1/transactions', {
-      method: 'POST',
+    const endpoint = editingTx ? `/api/v1/transactions` : '/api/v1/transactions';
+    const method = editingTx ? 'PATCH' : 'POST';
+    const payload: any = { date, amountCents, accountId, type, description };
+    if (editingTx) payload.id = editingTx.id;
+    const res = await fetch(endpoint, {
+      method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date, amountCents, accountId, type, description }),
+      body: JSON.stringify(payload),
     });
     const json = await res.json();
     if (json.success) {
       setAmount('0.00'); setDescription('');
+      setEditingTx(null);
       loadTx();
     } else {
       alert(json.error?.message || 'Failed to create');
+    }
+    setLoading(false);
+  }
+
+  async function startEdit(tx: Tx) {
+    setEditingTx(tx);
+    setDate(tx.date.slice(0,10));
+    setAmount((tx.amountCents/100).toFixed(2));
+    setAccountId(tx.account?.id || '');
+    setType(tx.type);
+    setDescription(tx.description || '');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function cancelEdit() {
+    setEditingTx(null);
+    setDate(new Date().toISOString().slice(0,10));
+    setAmount('0.00');
+    setDescription('');
+  }
+
+  async function deleteTx(id: string) {
+    if (!confirm('Delete this transaction? This cannot be undone.')) return;
+    setLoading(true);
+    const res = await fetch(`/api/v1/transactions?id=${id}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (json.success) {
+      loadTx();
+    } else {
+      alert(json.error?.message || 'Failed to delete');
     }
     setLoading(false);
   }
@@ -174,8 +210,14 @@ export default function TransactionsPage() {
                         <div className="text-sm text-slate-600">{t.account?.name || 'Unknown Account'} • {new Date(t.date).toLocaleDateString()}</div>
                       </div>
                     </div>
-                    <div className={`text-2xl font-bold ${t.type === 'INCOME' ? 'text-emerald-700' : t.type === 'EXPENSE' ? 'text-rose-700' : 'text-blue-700'}`}>
-                      {t.type === 'INCOME' ? '+' : t.type === 'EXPENSE' ? '-' : '→'} MWK {(t.amountCents/100).toFixed(2)}
+                    <div className="flex items-center gap-4">
+                      <div className={`text-2xl font-bold ${t.type === 'INCOME' ? 'text-emerald-700' : t.type === 'EXPENSE' ? 'text-rose-700' : 'text-blue-700'}`}>
+                        {t.type === 'INCOME' ? '+' : t.type === 'EXPENSE' ? '-' : '→'} MWK {(t.amountCents/100).toFixed(2)}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={()=>startEdit(t)} className="text-sm text-slate-600 hover:text-slate-800">Edit</button>
+                        <button onClick={()=>deleteTx(t.id)} className="text-sm text-rose-600 hover:text-rose-800">Delete</button>
+                      </div>
                     </div>
                   </div>
                 </div>

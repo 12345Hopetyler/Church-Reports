@@ -32,7 +32,8 @@ export async function GET() {
     // Account balances
     const accounts = await prisma.account.findMany({
       include: {
-        transactions: { select: { amountCents: true } },
+        // grab type so we can treat EXPENSEs as negative when summing balances
+        transactions: { select: { amountCents: true, type: true } },
       },
     });
 
@@ -42,7 +43,11 @@ export async function GET() {
     const totalExpenseCents = allExpense._sum.amountCents || 0;
 
     const accountBalances = accounts.map((acc: any) => {
-      const txSum = acc.transactions.reduce((s: number, t: any) => s + t.amountCents, 0);
+      const txSum = acc.transactions.reduce((s: number, t: any) => {
+        // Treat expenses as negative amounts; income and other types add
+        if (t.type === 'EXPENSE') return s - t.amountCents;
+        return s + t.amountCents;
+      }, 0);
       return {
         id: acc.id,
         name: acc.name,
