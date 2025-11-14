@@ -19,16 +19,24 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/v1/meta/summary')
-      .then(r => r.json())
-      .then(json => {
-        if (json.success) setSummary(json.data);
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/v1/meta/summary');
+        const json = await response.json();
+        if (json.success) {
+          setSummary(json.data);
+        } else {
+          // If API indicates failure, explicitly set summary to null to show error message
+          setSummary(null);
+        }
         setLoading(false);
-      })
-      .catch(e => {
-        console.error(e);
+      } catch (e) {
+        console.error("Failed to fetch summary data:", e);
+        setSummary(null); // Explicitly set to null on fetch error
         setLoading(false);
-      });
+      }
+    };
+    fetchData();
   }, []);
 
   const fmt = (cents: number) => (cents / 100).toFixed(2);
