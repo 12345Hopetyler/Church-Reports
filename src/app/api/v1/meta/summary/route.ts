@@ -9,57 +9,61 @@ export async function GET() {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Total income this month
-    const incomeResult = await prisma.transaction.aggregate({
-      where: { type: 'INCOME', date: { gte: monthStart } },
-      _sum: { amountCents: true },
-    });
+    // --- Efficiently fetch monthly and total stats in parallel ---
+    const [monthlyStats, totalStats, accounts, transactionSums] = await Promise.all([
+      // Get income and expense for the current month
+      prisma.transaction.groupBy({
+        by: ['type'],
+        where: { date: { gte: monthStart }, type: { in: ['INCOME', 'EXPENSE'] } },
+        _sum: { amountCents: true },
+      }),
+      // Get all-time income and expense
+      prisma.transaction.groupBy({
+        by: ['type'],
+        where: { type: { in: ['INCOME', 'EXPENSE'] } },
+        _sum: { amountCents: true },
+      }),
+      // Get all accounts
+      prisma.account.findMany(),
+      // Get the sum of all transactions grouped by account
+      prisma.transaction.groupBy({
+        by: ['accountId', 'type'],
+        _sum: { amountCents: true },
+      }),
+    ]);
 
-    // Total expenses this month
-    const expenseResult = await prisma.transaction.aggregate({
-      where: { type: 'EXPENSE', date: { gte: monthStart } },
-      _sum: { amountCents: true },
-    });
+    // --- Process the results ---
 
-    // All transactions (total ever)
-    const allIncome = await prisma.transaction.aggregate({
-      where: { type: 'INCOME' },
-      _sum: { amountCents: true },
-    });
+    const getSum = (results: typeof monthlyStats, type: 'INCOME' | 'EXPENSE') =>
+      results.find(r => r.type === type)?._sum.amountCents || 0;
 
-    const allExpense = await prisma.transaction.aggregate({
-      where: { type: 'EXPENSE' },
-      _sum: { amountCents: true },
-    });
+    const monthIncomeCents = getSum(monthlyStats, 'INCOME');
+    const monthExpenseCents = getSum(monthlyStats, 'EXPENSE');
+    const totalIncomeCents = getSum(totalStats, 'INCOME');
+    const totalExpenseCents = getSum(totalStats, 'EXPENSE');
 
-    // Account balances
-    const accounts = await prisma.account.findMany({
-      include: {
-        // grab type so we can treat EXPENSEs as negative when summing balances
-        transactions: { select: { amountCents: true, type: true } },
-      },
-    });
+    // Create a map for quick lookup of transaction sums per account
+    const txSumMap = new Map<string, number>();
+    for (const group of transactionSums) {
+      if (!group.accountId) continue;
+      const currentSum = txSumMap.get(group.accountId) || 0;
+      const amount = group._sum.amountCents || 0;
+      // Subtract expenses, add everything else (INCOME, TRANSFER)
+      const newSum = group.type === 'EXPENSE' ? currentSum - amount : currentSum + amount;
+      txSumMap.set(group.accountId, newSum);
+    }
 
-    const monthIncomeCents = incomeResult._sum.amountCents || 0;
-    const monthExpenseCents = expenseResult._sum.amountCents || 0;
-    const totalIncomeCents = allIncome._sum.amountCents || 0;
-    const totalExpenseCents = allExpense._sum.amountCents || 0;
-
-    const accountBalances = accounts.map((acc: any) => {
-      const txSum = acc.transactions.reduce((s: number, t: any) => {
-        // Treat expenses as negative amounts; income and other types add
-        if (t.type === 'EXPENSE') return s - t.amountCents;
-        return s + t.amountCents;
-      }, 0);
+    const accountBalances = accounts.map(acc => {
+      const txSum = txSumMap.get(acc.id) || 0;
       return {
         id: acc.id,
         name: acc.name,
         type: acc.type,
-        balanceCents: acc.openingCents + txSum,
+        balanceCents: (acc.openingCents || 0) + txSum,
       };
     });
 
-    const totalBalance = accountBalances.reduce((s: number, a: any) => s + a.balanceCents, 0);
+    const totalBalance = accountBalances.reduce((s, a) => s + a.balanceCents, 0);
 
     return NextResponse.json({
       success: true,
